@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'gui/flashcard.dart';
+import 'gui/msgcard.dart';
+import 'gui/gadgets.dart';
+import 'algorithm/leitner.dart';
 
 void main() {
   runApp(const FlashcardWrapperApp());
@@ -8,12 +12,19 @@ class Flashcard {
   String _word;
   String _meaning;
   DateTime lastLearned = DateTime.now();
+  List<int> recallTime = [];
+  List<int> recallRate = [];
+  double halfLifeMinute = 30.0;
 
   Flashcard(this._word, this._meaning);
 
-  void learn() => lastLearned = DateTime.now();
+  void learn(int result) {
+    recallTime.add(minutesSinceLearned());
+    recallRate.add(result);
+    halfLifeMinute = leitner(recallTime, recallRate, halfLifeMinute);
+  }
 
-  int hoursSinceLearned() => DateTime.now().difference(lastLearned).inHours;
+  int minutesSinceLearned() => DateTime.now().difference(lastLearned).inMinutes;
 
   void editMeaning(String s) => _meaning = s;
 
@@ -22,164 +33,6 @@ class Flashcard {
   String getMeaning() => _meaning;
 
   String getWord() => _word;
-}
-
-class ConfidenceButton extends StatelessWidget {
-  final void Function(int) reflect;
-  final int confidence;
-
-  const ConfidenceButton(this.reflect, this.confidence, {super.key});
-
-  int pow4(int n) => n * n * n * n;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        child: ElevatedButton(
-          onPressed: () => reflect(confidence),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: Color.fromRGBO(
-                  240 - pow4(confidence) * 15,
-                  240 - pow4(2 - confidence) * 15, 0, 0.8),
-              minimumSize: const Size.square(40),
-              padding: const EdgeInsets.all(10)
-          ),
-          child: null,
-        ),
-      ),
-    );
-  }
-}
-
-class ConfidenceRow extends StatelessWidget {
-  final void Function(int) reflect;
-
-  const ConfidenceRow(this.reflect, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        const Text(
-          "Are you familiar with this? ",
-          style: TextStyle(
-            fontSize: 20
-          )
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: <Widget>[
-            ConfidenceButton(reflect, 0),
-            ConfidenceButton(reflect, 1),
-            ConfidenceButton(reflect, 2)
-          ],
-        )
-      ],
-    );
-  }
-}
-
-class MessageCard extends StatelessWidget {
-
-  final String _message;
-
-  const MessageCard(this._message, {super.key});
-  
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.all(Radius.circular(10)),
-        color: Color.fromRGBO(200, 240, 200, 0.8),
-      ),
-      child: SizedBox(
-          width: 1000,
-          height: 1000,
-          child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Text(
-                  _message,
-                  style: const TextStyle(fontSize: 24),
-                ),
-              ]
-          )
-      ),
-    );
-  }
-}
-
-class FlashcardRender extends StatefulWidget {
-
-  final String _word;
-  final String _meaning;
-  final void Function(int) _reflect;
-
-  const FlashcardRender(this._word, this._meaning, this._reflect, {super.key});
-
-  @override
-  State<StatefulWidget> createState() => _FlashcardRenderState();
-}
-
-// can flip back and forth via clicking.
-class _FlashcardRenderState extends State<FlashcardRender> {
-  bool _reveal = false;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.all(Radius.circular(10)),
-      ),
-      child: ElevatedButton(
-        onPressed: (){
-          _reveal = !_reveal;
-          setState(() {});
-        },
-        style: ElevatedButton.styleFrom(
-            backgroundColor: const Color.fromRGBO(255, 255, 210, 0.8),
-            foregroundColor: Colors.black,
-        ),
-        child: SizedBox(
-          width: 1000,
-          height: 1000,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: _reveal? <Widget>[
-              const SizedBox(height: 20),
-              Text(
-                widget._word,
-                style: const TextStyle(fontSize: 40),
-              ),
-              const SizedBox(height: 50),
-              Center(
-                  child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Text(
-                        widget._meaning,
-                        style: const TextStyle(fontSize: 20),
-                      )
-                  )
-              ),
-              Expanded(
-                flex: 1,
-                child: Container(
-
-                )
-              ),
-              ConfidenceRow(widget._reflect),
-            ] : <Widget>[
-              Text(
-                widget._word,
-                style: const TextStyle(fontSize: 40),
-              )
-            ]
-          )
-      ),
-      )
-    );
-  }
 }
 
 class FlashcardWrapperApp extends StatelessWidget {
@@ -211,7 +64,7 @@ class _FlashcardHomepageState extends State<FlashcardHomepage> {
   final List<Flashcard> _flashcards = [];
   int _cursor = 0;
   String _counter = "No flashcard exists yet";
-  String nextCardStr = "Next Card";
+  // TODO implement restart lock when cards flipped
 
   addFlashcard(String w, String m) {
     Navigator.pop(context);
@@ -223,15 +76,21 @@ class _FlashcardHomepageState extends State<FlashcardHomepage> {
   nextFlashcard() {
     _cursor++;
     if (_cursor > _flashcards.length) _cursor = 0;
-    _counter = (_cursor == _flashcards.length)?
-      "Press \"Next Cart\" to restart" :
+    _counter = (_cursor == _flashcards.length) && _flashcards.isNotEmpty?
+      "All done" :
       "Flashcard no. ${1 + _cursor} / ${_flashcards.length}";
     setState((){});
   }
 
+  restart() {
+    _cursor = 0;
+    _counter = "Flashcard no. ${1 + _cursor} / ${_flashcards.length}";
+    setState(() {});
+  }
+
   void reflect(int confidence) {
-    // TODO update the learning history of _flashcard[_cursor]
-    print(confidence);
+    assert(_cursor < _flashcards.length && _cursor >= 0);
+    _flashcards[_cursor].learn(confidence);
   }
 
   void createFlashcard() {
@@ -241,17 +100,13 @@ class _FlashcardHomepageState extends State<FlashcardHomepage> {
     showDialog(context: context, builder: (BuildContext context) {
       return AlertDialog(
         content: Column(
-
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
             const Padding(
               padding: EdgeInsets.fromLTRB(0, 0, 0, 10),
-              child: Text(
-                "Create your new flashcard",
-                style: TextStyle(fontSize: 20),
-              ),
+              child: SizedText("Create Your new flashcard", 20)
             ),
             TextField(
               style: const TextStyle(fontSize: 16, height: 1.0),
@@ -280,18 +135,7 @@ class _FlashcardHomepageState extends State<FlashcardHomepage> {
                   onChanged: (String s) => _meaning = s,
                 ),
             ),
-            ElevatedButton(
-                onPressed: () => addFlashcard(_word, _meaning),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    minimumSize: const Size.fromHeight(40),
-                    padding: const EdgeInsets.all(10)
-                ),
-                child: const Text(
-                    "Confirm",
-                    style: TextStyle(fontSize: 20)
-                )
-            ),
+            UtilButton("Confirm", () => addFlashcard(_word, _meaning)),
           ],
         )
       );
@@ -317,7 +161,8 @@ class _FlashcardHomepageState extends State<FlashcardHomepage> {
                     const MessageCard("No flashcards created") :
                     _cursor < _flashcards.length?
                       FlashcardRender(_flashcards[_cursor].getWord(),
-                        _flashcards[_cursor].getMeaning(), reflect) :
+                        _flashcards[_cursor].getMeaning(),
+                          reflect, nextFlashcard) :
                       const MessageCard("Congrats on finishing")
                 )
             ),
@@ -325,10 +170,7 @@ class _FlashcardHomepageState extends State<FlashcardHomepage> {
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
               child: Align(
                 alignment: Alignment.topLeft,
-                child: Text(
-                  _counter,
-                  style: const TextStyle(fontSize: 24),
-                ),
+                child: SizedText(_counter, 24)
               ),
             ),
             Row(
@@ -337,35 +179,13 @@ class _FlashcardHomepageState extends State<FlashcardHomepage> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(10, 10, 5, 10),
-                    child: ElevatedButton(
-                        onPressed: createFlashcard,
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            minimumSize: const Size.square(40),
-                            padding: const EdgeInsets.all(10)
-                        ),
-                        child: const Text(
-                            "Add Flashcard",
-                            style: TextStyle(fontSize: 20)
-                        )
-                    ),
+                    child: UtilButton("Add Flashcard", createFlashcard)
                   ),
                 ),
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(5, 10, 10, 10),
-                    child: ElevatedButton(
-                        onPressed: nextFlashcard,
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            minimumSize: const Size.square(40),
-                            padding: const EdgeInsets.all(10)
-                        ),
-                        child: Text(
-                            nextCardStr,
-                            style: const TextStyle(fontSize: 20)
-                        )
-                    ),
+                    child: UtilButton("Restart", _flashcards.isEmpty? null : restart),
                   )
                 )
               ],
