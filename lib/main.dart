@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'gui/flashcard.dart';
 import 'gui/msgcard.dart';
 import 'gui/gadgets.dart';
-import 'algorithm/leitner.dart';
 import 'algorithm/hlr.dart';
-import 'dart:math';
 
 void main() {
   runApp(const FlashcardWrapperApp());

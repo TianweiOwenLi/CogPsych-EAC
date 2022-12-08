@@ -1,20 +1,6 @@
 
 import 'dart:math';
 
-num loss(List<int> time, List<int> rate, double hl) {
-  assert(time.length == rate.length);
-  int n = time.length;
-
-  // recall-rate loss
-  num recallRateLoss = 0.0;
-  for (int i = 0; i < n; i++) {
-    num recallEst = pow(0.5, time[i] / hl);
-    recallRateLoss += pow((recallEst - rate[i] / 2.0), 2);
-  }
-
-  return recallRateLoss + 0.1 * pow(hl, 2); // L2 regularization
-}
-
 num gradient(List<int> time, List<int> rate, double hl) {
   num ret = 0.0;
 
@@ -23,8 +9,11 @@ num gradient(List<int> time, List<int> rate, double hl) {
     if (rate[i] == 2) recallPercent = 0.7;
     if (rate[i] == 0) recallPercent = 0.0;
 
-    if (time[i] < hl && rate[i] == 2) continue; // prevents reverse feedback
+    // prevents unwanted negative feedback
+    // due to clustered study sessions
+    if (time[i] < hl && rate[i] == 2) continue;
 
+    // Loss function. See documentations for derivation.
     ret += 2 * (pow(0.5, (time[i] / hl)) - recallPercent / 2)
         * (pow(0.5, time[i] / hl) * log(0.5) * (- time[i] / hl));
   }
@@ -36,14 +25,13 @@ double hlr(List<int> time, List<int> rate, prevHL) {
   double hl = prevHL;
   double lr = 50;
 
-  for (int t = 0; t < 100; t++) {
-    // num lossValM = loss(time, rate, hl - 1);
-    // num lossValP = loss(time, rate, hl + 1);
-    // num grad = (lossValM - lossValP) / 2;
+  // gradient descent
+  for (int t = 0; t < 10000; t++) {
     num grad = gradient(time, rate, hl);
-    print("grad: $grad");
     hl -= lr * grad;
-    print("hl: $hl");
+    if (grad.abs() <= 0.0000001) {
+      break;
+    }
   }
 
   return hl;
