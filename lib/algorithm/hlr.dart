@@ -17,18 +17,24 @@ num loss(List<int> time, List<int> rate, double hl) {
 
 num gradient(List<int> time, List<int> rate, double hl) {
   num ret = 0.0;
+
   for (int i = 0; i < time.length; i++) {
-    ret += 2 * (pow(0.5, (time[i] / hl)) - rate[i] / 2)
+    double recallPercent = 0.5; // default
+    if (rate[i] == 2) recallPercent = 0.7;
+    if (rate[i] == 0) recallPercent = 0.0;
+
+    if (time[i] < hl && rate[i] == 2) continue; // prevents reverse feedback
+
+    ret += 2 * (pow(0.5, (time[i] / hl)) - recallPercent / 2)
         * (pow(0.5, time[i] / hl) * log(0.5) * (- time[i] / hl));
   }
-  // regularization
-  return ret + 0.0001 * hl;
+  return ret;
 }
 
 double hlr(List<int> time, List<int> rate, prevHL) {
   // initialize hl
   double hl = prevHL;
-  double lr = 500;
+  double lr = 50;
 
   for (int t = 0; t < 100; t++) {
     // num lossValM = loss(time, rate, hl - 1);

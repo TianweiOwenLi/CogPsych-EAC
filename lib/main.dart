@@ -3,6 +3,8 @@ import 'gui/flashcard.dart';
 import 'gui/msgcard.dart';
 import 'gui/gadgets.dart';
 import 'algorithm/leitner.dart';
+import 'algorithm/hlr.dart';
+import 'dart:math';
 
 void main() {
   runApp(const FlashcardWrapperApp());
@@ -19,12 +21,16 @@ class Flashcard {
   Flashcard(this._word, this._meaning);
 
   void learn(int result) {
-    recallTime.add(minutesSinceLearned());
+    recallTime.add(minutesSinceLearned() + halfLifeMinute.toInt()); // experiment
     recallRate.add(result);
-    halfLifeMinute = leitner(recallTime, recallRate, halfLifeMinute);
+    if (recallTime.length > 3) {
+      recallTime.removeAt(0);
+      recallRate.removeAt(0);
+    }
+    halfLifeMinute = hlr(recallTime, recallRate, halfLifeMinute);
   }
 
-  int minutesSinceLearned() => DateTime.now().difference(lastLearned).inMinutes;
+  int minutesSinceLearned() => DateTime.now().difference(lastLearned).inMinutes; // experiment
 
   void editMeaning(String s) => _meaning = s;
 
